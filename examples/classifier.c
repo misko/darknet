@@ -411,7 +411,7 @@ void validate_classifier_single(char *datacfg, char *filename, char *weightfile)
             if(indexes[j] == class) avg_topk += 1;
         }
 
-        printf("%s, %d, %f, %f, \n", paths[i], class, pred[0], pred[1]);
+        printf("%s, %d, %f, %f, %f, %f\n", paths[i], class, pred[0], pred[1],pred[2],pred[3]);
         printf("%d: top 1: %f, top %d: %f\n", i, avg_acc/(i+1), topk, avg_topk/(i+1));
     }
 }
