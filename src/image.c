@@ -1445,11 +1445,15 @@ image load_image_stb(char *filename, int channels)
     unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
     if (!data) {
         fprintf(stderr, "Cannot load image \"%s\"\nSTB Reason: %s\n", filename, stbi_failure_reason());
-        exit(0);
+        //exit(0);
+	w=500;
+	h=500;
+	c=3;
     }
     if(channels) c = channels;
     int i,j,k;
     image im = make_image(w, h, c);
+if (data) {
     for(k = 0; k < c; ++k){
         for(j = 0; j < h; ++j){
             for(i = 0; i < w; ++i){
@@ -1459,6 +1463,18 @@ image load_image_stb(char *filename, int channels)
             }
         }
     }
+} else {
+    for(k = 0; k < c; ++k){
+        for(j = 0; j < h; ++j){
+            for(i = 0; i < w; ++i){
+                int dst_index = i + w*j + w*h*k;
+                int src_index = k + c*i + c*w*j;
+                im.data[dst_index] = (float)100/255.;
+            }
+        }
+    }
+
+}
     free(data);
     return im;
 }
