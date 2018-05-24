@@ -83,6 +83,8 @@ detection *avg_predictions(network *net, int *nboxes)
     return dets;
 }
 
+
+float pet_det=0.0;
 void *detect_in_thread(void *ptr)
 {
     running = 1;
@@ -122,15 +124,38 @@ void *detect_in_thread(void *ptr)
     //avg[i].objectness = dets[0][i].objectness;
     }
      */
-
     if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
 
-    printf("\033[2J");
-    printf("\033[1;1H");
-    printf("\nFPS:%.1f\n",fps);
-    printf("Objects:\n\n");
+    //printf("\033[2J");
+    //printf("\033[1;1H");
+    //printf("\nFPS:%.1f\n",fps);
+    //printf("Objects:\n\n");
     image display = buff[(buff_index+2) % 3];
-    draw_detections(display, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes);
+//void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes)
+    int i,j;
+    for(i = 0; i < nboxes; ++i){
+        char labelstr[4096] = {0};
+        int class = -1;
+        for(j = 0; j < demo_classes; ++j){
+            if (dets[i].prob[j] > demo_thresh){
+                if (class < 0) {
+                    strcat(labelstr, demo_names[j]);
+                    class = j;
+                } else {
+                    strcat(labelstr, ", ");
+                    strcat(labelstr, demo_names[j]);
+                }
+		
+		if (strcmp(demo_names[j],"pet")==0) {
+			pet_det=dets[i].prob[j]*100;
+		} else {
+			pet_det=0.0;
+		}
+                //printf("%s: %.0f%%\n", demo_names[j], dets[i].prob[j]*100);
+            }
+        }
+    }
+    //draw_detections(display, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes);
     free_detections(dets, nboxes);
 
     demo_index = (demo_index + 1)%demo_frame;
@@ -182,6 +207,7 @@ void *detect_loop(void *ptr)
     }
 }
 
+int pet_frames=0;
 void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const char *filename, char **names, int classes, int delay, char *prefix, int avg_frames, float hier, int w, int h, int frames, int fullscreen)
 {
     //demo_frame = avg_frames;
@@ -191,7 +217,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
     demo_classes = classes;
     demo_thresh = thresh;
     demo_hier = hier;
-    printf("Demo\n");
+    //printf("Demo\n");
     net = load_network(cfgfile, weightfile, 0);
     set_batch_network(net, 1);
     pthread_t detect_thread;
@@ -208,7 +234,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
     avg = calloc(demo_total, sizeof(float));
 
     if(filename){
-        printf("video file: %s\n", filename);
+        //printf("video file: %s\n", filename);
         cap = cvCaptureFromFile(filename);
     }else{
         cap = cvCaptureFromCAM(cam_index);
@@ -247,14 +273,24 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
 
     demo_time = what_time_is_it_now();
 
+    int every_n_frame=45;
+    float pet_det_long=0.0; 
+    int det_count=0;
     while(!demo_done){
+	//printf("RUNNING\n");
         buff_index = (buff_index + 1) %3;
         if(pthread_create(&fetch_thread, 0, fetch_in_thread, 0)) error("Thread creation failed");
+	if (count%every_n_frame!=0) {
+        	pthread_join(fetch_thread, 0);
+		//fprintf(stderr,"%d\n",count);
+        	++count;
+		continue;
+	}
         if(pthread_create(&detect_thread, 0, detect_in_thread, 0)) error("Thread creation failed");
         if(!prefix){
             fps = 1./(what_time_is_it_now() - demo_time);
             demo_time = what_time_is_it_now();
-            display_in_thread(0);
+            //display_in_thread(0);
         }else{
             char name[256];
             sprintf(name, "%s_%08d", prefix, count);
@@ -262,8 +298,18 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
         }
         pthread_join(fetch_thread, 0);
         pthread_join(detect_thread, 0);
+	//fprintf(stderr,"%0.2f %d\n",pet_det,count);
+	pet_det_long+=pet_det;
         ++count;
+	det_count++;
     }
+    pet_det_long/=det_count;
+    if (pet_det>0.2) {
+	printf("{ 'pet':1.00 , 'other':0.0 }\n");
+    } else {
+	printf("{ 'pet':0 , 'other':1.00 }\n");
+    }
+
 }
 
 /*
