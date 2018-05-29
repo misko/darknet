@@ -1,0 +1,4 @@
+pet
+person
+furniture
+other
