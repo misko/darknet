@@ -173,10 +173,14 @@ void forward_region_layer(const layer l, network net)
     }
     if (l.softmax_tree){
         int i;
-        int count = l.coords + 1;
+        //int count = l.coords + 1;
+        int count = 0;
         for (i = 0; i < l.softmax_tree->groups; ++i) {
             int group_size = l.softmax_tree->group_size[i];
-            softmax_cpu(net.input + count, group_size, l.batch, l.inputs, l.n*l.w*l.h, 1, l.n*l.w*l.h, l.temperature, l.output + count);
+            //softmax_cpu(net.input + count, group_size, l.batch, l.inputs, l.n*l.w*l.h, 1, l.n*l.w*l.h, l.temperature, l.output + count);
+	    int index = entry_index(l, 0, 0, l.coords + !l.background + count);
+            softmax_cpu(net.input + index, group_size, l.batch*l.n, l.inputs/l.n, l.w*l.h, 1, l.w*l.h, l.temperature, l.output + index);
+            
             count += group_size;
         }
     } else if (l.softmax){
@@ -421,6 +425,13 @@ void get_region_detections(layer l, int w, int h, int netw, int neth, float thre
                 } else {
                     int j =  hierarchy_top_prediction(predictions + class_index, l.softmax_tree, tree_thresh, l.w*l.h);
                     dets[index].prob[j] = (scale > thresh) ? scale : 0;
+///MISKO
+		    for (int j=0; j<l.classes; j++) {
+			int class_index = entry_index(l, 0, n*l.w*l.h + i, l.coords + 1 + j);
+		        float prob = predictions[class_index];
+			dets[index].prob[j] = (scale > thresh) ? scale*prob : 0;
+		    }
+//END MISKO
                 }
             } else {
                 if(dets[index].objectness){
@@ -457,8 +468,13 @@ void forward_region_layer_gpu(const layer l, network net)
         }
     }
     if (l.softmax_tree){
-        int index = entry_index(l, 0, 0, l.coords + 1);
+        //orig
+        //int index = entry_index(l, 0, 0, l.coords + 1);
+        //softmax_tree(net.input_gpu + index, l.w*l.h, l.batch*l.n, l.inputs/l.n, 1, l.output_gpu + index, *l.softmax_tree);
+        //mod
+        int index = entry_index(l, 0, 0, l.coords + !l.background);
         softmax_tree(net.input_gpu + index, l.w*l.h, l.batch*l.n, l.inputs/l.n, 1, l.output_gpu + index, *l.softmax_tree);
+            
     } else if (l.softmax) {
         int index = entry_index(l, 0, 0, l.coords + !l.background);
         softmax_gpu(net.input_gpu + index, l.classes + l.background, l.batch*l.n, l.inputs/l.n, l.w*l.h, 1, l.w*l.h, 1, l.output_gpu + index);
