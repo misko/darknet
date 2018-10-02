@@ -196,8 +196,9 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     int batch_normalize = option_find_int_quiet(options, "batch_normalize", 0);
     int binary = option_find_int_quiet(options, "binary", 0);
     int xnor = option_find_int_quiet(options, "xnor", 0);
-
+    //printf("WTF1\n");
     convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize, binary, xnor, params.net->adam);
+    //printf("WTF2\n");
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
     layer.dot = option_find_float_quiet(options, "dot", 0);
 
@@ -753,10 +754,10 @@ network *parse_network_cfg(char *filename)
     n = n->next;
     int count = 0;
     free_section(s);
-    fprintf(stderr, "layer     filters    size              input                output\n");
+    //fprintf(stderr, "layer     filters    size              input                output\n");
     while(n){
         params.index = count;
-        fprintf(stderr, "%5d ", count);
+        //fprintf(stderr, "%5d ", count);
         s = (section *)n->val;
         options = s->options;
         layer l = {0};
@@ -1206,7 +1207,7 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
         cuda_set_device(net->gpu_index);
     }
 #endif
-    fprintf(stderr, "Loading weights from %s...", filename);
+    //fprintf(stderr, "Loading weights from %s...", filename);
     fflush(stdout);
     FILE *fp = fopen(filename, "rb");
     if(!fp) file_error(filename);
@@ -1285,7 +1286,7 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
 #endif
         }
     }
-    fprintf(stderr, "Done!\n");
+    //fprintf(stderr, "Done!\n");
     fclose(fp);
 }
 
