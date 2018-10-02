@@ -1,5 +1,5 @@
 #include "darknet.h"
-
+#include "image.h"
 static int coco_ids[] = {1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90};
 
 
@@ -53,7 +53,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     args.d = &buffer;
     args.type = DETECTION_DATA;
     //args.type = INSTANCE_DATA;
-    args.threads = 64;
+    //args.threads = 64;
+    args.threads = 1;
 
     pthread_t load_thread = load_data(args);
     double time;
@@ -188,6 +189,39 @@ static void print_cocos(FILE *fp, char *image_path, detection *dets, int num_box
     }
 }
 
+void print_detector_detections_misko(FILE **fps, char *id, detection *dets, int total, int classes, int w, int h,char ** names)
+{
+    float max_p[6]={0,0,0,0,0,0};
+    int i, j;
+    for(i = 0; i < total; ++i){
+        float xmin = dets[i].bbox.x - dets[i].bbox.w/2. + 1;
+        float xmax = dets[i].bbox.x + dets[i].bbox.w/2. + 1;
+        float ymin = dets[i].bbox.y - dets[i].bbox.h/2. + 1;
+        float ymax = dets[i].bbox.y + dets[i].bbox.h/2. + 1;
+
+        if (xmin < 1) xmin = 1;
+        if (ymin < 1) ymin = 1;
+        if (xmax > w) xmax = w;
+        if (ymax > h) ymax = h;
+
+        for(j = 0; j < 6; ++j){
+            if (dets[i].prob[j]>max_p[j]) {
+                max_p[j]=dets[i].prob[j];
+            }
+            //if (dets[i].prob[j]) {
+            //        fprintf(fps[j], "%s %f %f %f %f %f\n", id, dets[i].prob[j],xmin, ymin, xmax, ymax);
+            //}
+        }
+    }
+    float n=0.01;
+    for (i=0; i<6; i++) {
+       n+=max_p[i];
+    }
+n=1.0;
+       fprintf(stderr, "M%s %f %f %f %f %f %f\n", id,max_p[0]/n,max_p[1]/n,max_p[2]/n,max_p[3]/n,max_p[4]/n,max_p[5]/n);
+       fprintf(fps[0], "M%s %f %f %f %f %f %f\n", id,max_p[0]/n,max_p[1]/n,max_p[2]/n,max_p[3]/n,max_p[4]/n,max_p[5]/n);
+}
+
 void print_detector_detections(FILE **fps, char *id, detection *dets, int total, int classes, int w, int h)
 {
     int i, j;
@@ -203,14 +237,16 @@ void print_detector_detections(FILE **fps, char *id, detection *dets, int total,
         if (ymax > h) ymax = h;
 
         for(j = 0; j < classes; ++j){
-            if (dets[i].prob[j]) fprintf(fps[j], "%s %f %f %f %f %f\n", id, dets[i].prob[j],
-                    xmin, ymin, xmax, ymax);
+            if (dets[i].prob[j]) {
+                    fprintf(fps[j], "%s %f %f %f %f %f\n", id, dets[i].prob[j],xmin, ymin, xmax, ymax);
+            }
         }
     }
 }
 
 void print_imagenet_detections(FILE *fp, int id, detection *dets, int total, int classes, int w, int h)
 {
+    fprintf(stderr,"ABOUT TO PRINT DETECTION! %d\n",classes);
     int i, j;
     for(i = 0; i < total; ++i){
         float xmin = dets[i].bbox.x - dets[i].bbox.w/2.;
@@ -225,8 +261,11 @@ void print_imagenet_detections(FILE *fp, int id, detection *dets, int total, int
 
         for(j = 0; j < classes; ++j){
             int class = j;
-            if (dets[i].prob[class]) fprintf(fp, "%d %d %f %f %f %f %f\n", id, j+1, dets[i].prob[class],
-                    xmin, ymin, xmax, ymax);
+            if (dets[i].prob[class]) {
+                   fprintf(fp, "%d %d\n", id, j+1);
+                   fprintf(fp, "%d %d %f\n", id, j+1, dets[i].prob[class]);
+                   fprintf(fp, "%d %d %f %f %f %f %f\n", id, j+1, dets[i].prob[class], xmin, ymin, xmax, ymax);
+            }
         }
     }
 }
@@ -261,12 +300,14 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
     int coco = 0;
     int imagenet = 0;
     if(0==strcmp(type, "coco")){
+        fprintf(stderr,"COCO\n");
         if(!outfile) outfile = "coco_results";
         snprintf(buff, 1024, "%s/%s.json", prefix, outfile);
         fp = fopen(buff, "w");
         fprintf(fp, "[\n");
         coco = 1;
     } else if(0==strcmp(type, "imagenet")){
+        fprintf(stderr,"IMAGENET\n");
         if(!outfile) outfile = "imagenet-detection";
         snprintf(buff, 1024, "%s/%s.txt", prefix, outfile);
         fp = fopen(buff, "w");
@@ -278,6 +319,12 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
         for(j = 0; j < classes; ++j){
             snprintf(buff, 1024, "%s/%s%s.txt", prefix, outfile, names[j]);
             fps[j] = fopen(buff, "w");
+            if (fps[j]==NULL) {
+                 fprintf(stderr,"Failed to open %s\n",buff);
+                 exit(1);
+            } else {
+                 fprintf(stderr,"Opened %s\n",buff);
+            }
         }
     }
 
@@ -288,7 +335,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
     float thresh = .005;
     float nms = .45;
 
-    int nthreads = 4;
+    int nthreads = 16 ; //4;
     image *val = calloc(nthreads, sizeof(image));
     image *val_resized = calloc(nthreads, sizeof(image));
     image *buf = calloc(nthreads, sizeof(image));
@@ -301,7 +348,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
     args.w = net->w;
     args.h = net->h;
     //args.type = IMAGE_DATA;
-    args.type = LETTERBOX_DATA;
+    args.type= DETECTION_DATA;
 
     for(t = 0; t < nthreads; ++t){
         args.path = paths[i+t];
@@ -329,7 +376,8 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
             copy_cpu(net->w*net->h*net->c, val_resized[t].data, 1, input.data, 1);
             flip_image(val_resized[t]);
             copy_cpu(net->w*net->h*net->c, val_resized[t].data, 1, input.data + net->w*net->h*net->c, 1);
-
+	    //MISKO network predict
+	fprintf(stderr,"SUM %f\n",get_image_sum(input));
             network_predict(net, input.data);
             int w = val[t].w;
             int h = val[t].h;
@@ -341,7 +389,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
             } else if (imagenet){
                 print_imagenet_detections(fp, i+t-nthreads+1, dets, num, classes, w, h);
             } else {
-                print_detector_detections(fps, id, dets, num, classes, w, h);
+                print_detector_detections_misko(fps, id, dets, num, classes, w, h,names);
             }
             free_detections(dets, num);
             free(id);
@@ -383,6 +431,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 
     layer l = net->layers[net->n-1];
     int classes = l.classes;
+    fprintf(stderr,"HAVE %d clases\n",classes);
 
     char buff[1024];
     char *type = option_find_str(options, "eval", "voc");
@@ -401,13 +450,19 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
         snprintf(buff, 1024, "%s/%s.txt", prefix, outfile);
         fp = fopen(buff, "w");
         imagenet = 1;
-        classes = 200;
+        //classes = 200;
     } else {
         if(!outfile) outfile = "comp4_det_test_";
         fps = calloc(classes, sizeof(FILE *));
         for(j = 0; j < classes; ++j){
             snprintf(buff, 1024, "%s/%s%s.txt", prefix, outfile, names[j]);
             fps[j] = fopen(buff, "w");
+            if (fps[j]==NULL) {
+                 fprintf(stderr,"Failed to open %s\n",buff);
+                 exit(1);
+            } else {
+                 fprintf(stderr,"Opened %s\n",buff);
+            }
         }
     }
 
@@ -431,6 +486,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
     args.h = net->h;
     //args.type = IMAGE_DATA;
     args.type = LETTERBOX_DATA;
+    //args.type = DETECTION_DATA;
 
     for(t = 0; t < nthreads; ++t){
         args.path = paths[i+t];
@@ -456,6 +512,11 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
             char *path = paths[i+t-nthreads];
             char *id = basecfg(path);
             float *X = val_resized[t].data;
+	    fprintf(stderr,"SUM 3 %f %f %f %f\n",get_image_sum(val_resized[t]),get_image_sum(val_resized[t]),X[1],X[3]);
+for (int ii=0; ii<val_resized[t].w*val_resized[t].h; ii++) {
+	fprintf(stderr,"%lf\n",X[ii]);
+
+}
             network_predict(net, X);
             int w = val[t].w;
             int h = val[t].h;
@@ -467,7 +528,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
             } else if (imagenet){
                 print_imagenet_detections(fp, i+t-nthreads+1, dets, nboxes, classes, w, h);
             } else {
-                print_detector_detections(fps, id, dets, nboxes, classes, w, h);
+                print_detector_detections_misko(fps, path, dets, nboxes, classes, w, h,names);
             }
             free_detections(dets, nboxes);
             free(id);

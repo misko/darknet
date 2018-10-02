@@ -25,6 +25,18 @@ float get_color(int c, int x, int max)
     return r;
 }
 
+float get_image_sum(image im ) {
+	float sum=0.0;
+	int i;
+        for(i = 0; i < im.w*im.h; ++i){
+            sum+=im.data[i + 0*im.w*im.h];
+            sum+=im.data[i + 1*im.w*im.h];
+            sum+=im.data[i + 2*im.w*im.h];
+        }
+	return sum;
+
+}
+
 image mask_to_rgb(image mask)
 {
     int n = mask.c;
@@ -1453,16 +1465,19 @@ image load_image_stb(char *filename, int channels)
     if(channels) c = channels;
     int i,j,k;
     image im = make_image(w, h, c);
+    double sum=0.0;
 if (data) {
     for(k = 0; k < c; ++k){
         for(j = 0; j < h; ++j){
             for(i = 0; i < w; ++i){
                 int dst_index = i + w*j + w*h*k;
                 int src_index = k + c*i + c*w*j;
+		sum+=data[src_index];
                 im.data[dst_index] = (float)data[src_index]/255.;
             }
         }
     }
+
 } else {
     for(k = 0; k < c; ++k){
         for(j = 0; j < h; ++j){
@@ -1476,6 +1491,7 @@ if (data) {
 
 }
     free(data);
+
     return im;
 }
 

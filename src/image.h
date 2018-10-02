@@ -42,7 +42,7 @@ void rgb_to_hsv(image im);
 void hsv_to_rgb(image im);
 void yuv_to_rgb(image im);
 void rgb_to_yuv(image im);
-
+float get_sum(image im);
 
 image collapse_image_layers(image source, int border);
 image collapse_images_horz(image *ims, int n);
@@ -58,6 +58,7 @@ void print_image(image m);
 image make_empty_image(int w, int h, int c);
 void copy_image_into(image src, image dest);
 
+float get_image_sum(image img);
 image get_image_layer(image m, int l);
 
 #endif
